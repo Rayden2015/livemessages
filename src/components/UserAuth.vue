@@ -9,40 +9,62 @@ const password = ref('');
 const phone = ref('');
 
 const googleLogin = async () => {
-  const result = await signInWithPopup(auth, provider);
-  emit('signed-in', result.user);
+  try {
+    const result = await signInWithPopup(auth, provider);
+    emit('signed-in', result.user);
+  } catch (error) {
+    console.error('Google login failed:', error);
+    alert(error.message);
+  }
 };
 
+const loading = ref(false);
+
 const emailLogin = async () => {
-  const result = await signInWithEmailAndPassword(auth, email.value, password.value);
-  emit('signed-in', result.user);
+  loading.value = true;
+  try {
+    const result = await signInWithEmailAndPassword(auth, email.value, password.value);
+    emit('signed-in', result.user);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const phoneLogin = async () => {
+  try {
+    const confirmation = await signInWithPhoneNumber(auth, phone.value, recaptchaVerifier);
+    const code = prompt('Enter the verification code');
+    const result = await confirmation.confirm(code);
+    emit('signed-in', result.user);
+  } catch (error) {
+    console.error('Phone login failed:', error);
+    alert(error.message);
+  }
 };
 
 let recaptchaVerifier;
 
+let recaptchaInitialized = false;
+
 onMounted(() => {
-  if (typeof window !== 'undefined' && auth) {
+  if (typeof window !== 'undefined' && auth && !recaptchaInitialized) {
     recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-            size: 'invisible',
-            callback: () => {
-                console.log('recaptcha resolved..')
-            }
-        });
+      size: 'invisible',
+      callback: () => {
+        console.log('recaptcha resolved..');
+      },
+    });
 
     recaptchaVerifier.render().then(widgetId => {
       console.log('reCAPTCHA widget ID:', widgetId);
     });
-  } else {
-    console.error('Firebase Auth not ready or recaptcha setup failed.');
+
+    recaptchaInitialized = true;
   }
 });
 
-const phoneLogin = async () => {
-  const confirmation = await signInWithPhoneNumber(auth, phone.value, recaptchaVerifier);
-  const code = prompt('Enter the verification code');
-  const result = await confirmation.confirm(code);
-  emit('signed-in', result.user);
-};
 </script>
 
 <template>
@@ -62,8 +84,14 @@ const phoneLogin = async () => {
           <input v-model="email" placeholder="Email" />
           <label>Password</label>
           <input v-model="password" type="password" placeholder="Password" />
-          <button type="submit">
-            <span class="icon">📧</span> Login with Email
+          <button type="submit" :disabled="loading">
+            <span class="icon">📧</span>
+            <template v-if="loading">
+              Signing in<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+            </template>
+            <template v-else>
+              Login with Email
+            </template>
           </button>
         </form>
       </div>
@@ -102,7 +130,8 @@ const phoneLogin = async () => {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.9); /* subtle overlay */
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(6px);
   z-index: -1;
 }
 
@@ -184,6 +213,31 @@ const phoneLogin = async () => {
   opacity: 0;
 }
 
+.dot {
+  animation: blink 1.4s infinite both;
+  display: inline-block;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0% {
+    opacity: 0.2;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+
 @media (min-width: 600px) {
   .auth {
     max-width: 500px;
@@ -194,6 +248,21 @@ const phoneLogin = async () => {
 @media (min-width: 1024px) {
   .auth {
     max-width: 600px;
+  }
+}
+
+@media (max-width: 599px) {
+  .auth {
+    width: 90%;
+    padding: 1rem;
+  }
+
+  .card {
+    padding: 0.75rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
   }
 }
 </style>

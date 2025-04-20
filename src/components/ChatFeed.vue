@@ -188,10 +188,10 @@ function formatTime(seconds) {
 .chat-feed {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 90%;
+  height: 100vh; /* Full height */
+  width: 100%;
   max-width: 600px;
-  margin: 2rem auto;
+  margin: 0 auto;
   background-color: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(10px);
   border-radius: 12px;
@@ -200,6 +200,7 @@ function formatTime(seconds) {
 }
 
 .chat-header {
+  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.7);
   padding: 0.75rem;
   font-weight: bold;
@@ -217,6 +218,7 @@ function formatTime(seconds) {
 }
 
 .chat-input {
+  flex-shrink: 0;
   display: flex;
   padding: 1rem;
   background: #fff;
