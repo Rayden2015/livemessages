@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted } from 'vue';
 import { db } from '../firebase';
 import {
   collection,
@@ -19,13 +19,17 @@ const messageText = ref('');
 const messagesEndRef = ref(null);
 
 onMounted(() => {
-  const q = query(collection(db, 'messages'), orderBy('timestamp'));
-  onSnapshot(q, async (snapshot) => {
-    messages.value = snapshot.docs.map(doc => doc.data());
-    await nextTick(); // Wait for DOM update
-    scrollToBottom();
-  });
-});
+  const userMessagesRef = collection(db, 'messages');
+  const q = query(userMessagesRef, orderBy('createdAt'))
+
+  onSnapshot(q, (snapshot) => {
+    messages.value = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    console.log('Messages:', messages.value);
+  })
+})
 
 const sendMessage = async () => {
   console.log('User:', props.user);
@@ -38,13 +42,22 @@ const sendMessage = async () => {
   }
 
   try {
-    await addDoc(collection(db, 'messages'), {
-      text: messageText.value,
-      sender: props.user.displayName || 'Anonymous',
-      uid: props.user.uid,
-      photoURL: props.user.photoURL || '',
-      timestamp: serverTimestamp()
-    });
+    await addDoc(
+        collection(db, 'messages'),
+        {
+            text: messageText.value,
+            user: {
+            uid: props.user.uid,
+            displayName: props.user.displayName,
+            },
+            sender: props.user.displayName || 'Anonymous',
+            uid: props.user.uid,
+            photoURL: props.user.photoURL || '',
+            timestamp: serverTimestamp(),
+            createdAt: serverTimestamp(),
+        }
+);
+
     messageText.value = '';
   } catch (error) {
     console.error('Error sending message:', error);
@@ -58,40 +71,31 @@ const scrollToBottom = () => {
 </script>
 
 <template>
-  <div class="chat-container">
-    <div class="chat-header">
-      👋 Welcome, <strong>{{ props.user.displayName }}</strong>
-    </div>
-
-    <div class="messages">
-      <div
-        v-for="(msg, index) in messages"
-        :key="index"
-        :class="['message-item', msg.uid === props.user.uid ? 'own' : 'other']"
-      >
-        <div class="bubble">
-          <img v-if="msg.photoURL" :src="msg.photoURL" class="avatar" />
-          <div>
-            <div class="sender">{{ msg.sender }}</div>
-            <div class="text">{{ msg.text }}</div>
-            <div class="timestamp">{{ formatDate(msg.timestamp?.seconds) }}</div>
+    <div class="chat-feed">
+      <div class="messages">
+        <div
+          v-for="msg in messages"
+          :key="msg.id"
+          :class="['message-bubble', msg.uid === user.uid ? 'mine' : 'theirs']"
+        >
+          <div class="message-meta">
+            <span class="sender">{{ msg.uid === user.uid ? 'You' : msg.sender }}</span>
+            <span class="time">{{ formatTime(msg.createdAt?.seconds) }}</span>
           </div>
+          <div class="text">{{ msg.text }}</div>
         </div>
       </div>
-      <div ref="messagesEndRef"></div>
+  
+      <div class="input-area">
+        <input
+          v-model="messageText"
+          @keydown.enter="sendMessage"
+          placeholder="Type a message..."
+        />
+        <button @click="sendMessage">Send</button>
+      </div>
     </div>
-
-    <div class="input-area">
-      <input
-        v-model="messageText"
-        @keydown.enter="sendMessage"
-        placeholder="Type your birthday message here..."
-        autofocus
-      />
-      <button @click="sendMessage" @keydown.enter="sendMessage">Send</button>
-    </div>
-  </div>
-</template>
+  </template>
 
 <script>
 function formatDate(seconds) {
@@ -99,108 +103,88 @@ function formatDate(seconds) {
   const date = new Date(seconds * 1000);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+function formatTime(seconds) {
+  if (!seconds) return '';
+  const date = new Date(seconds * 1000);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 </script>
 
 <style scoped>
-.chat-container {
+.chat-feed {
   display: flex;
   flex-direction: column;
-  height: 90vh;
+  height: 80vh;
   max-width: 600px;
   margin: 0 auto;
-  background: #ffffff;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-.chat-header {
-  padding: 1rem;
-  background-color: #ededed;
-  font-weight: bold;
-  border-bottom: 1px solid #ccc;
+  background: #f4f4f4;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .messages {
   flex: 1;
   overflow-y: auto;
   padding: 1rem;
-  background: #f7f7f7;
-}
-
-.message-item {
-  margin-bottom: 1rem;
   display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.message-item.own {
-  justify-content: flex-end;
-}
-
-.message-item.other {
-  justify-content: flex-start;
-}
-
-.bubble {
-  display: flex;
-  align-items: flex-start;
-  max-width: 75%;
-  background: #dcf8c6;
-  padding: 0.75rem;
-  border-radius: 12px;
+.message-bubble {
+  max-width: 70%;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
   position: relative;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
-.message-item.own .bubble {
-  background: #cef;
-  flex-direction: row-reverse;
+.message-bubble.mine {
+  background-color: #dcf8c6;
+  align-self: flex-end;
+  border-bottom-right-radius: 0;
 }
 
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  margin: 0 0.5rem;
+.message-bubble.theirs {
+  background-color: #fff;
+  align-self: flex-start;
+  border-bottom-left-radius: 0;
 }
 
-.sender {
-  font-weight: bold;
-  font-size: 0.85rem;
-}
-
-.text {
-  margin-top: 0.25rem;
-}
-
-.timestamp {
-  font-size: 0.7rem;
-  text-align: right;
-  color: #888;
-  margin-top: 4px;
+.message-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  margin-bottom: 0.3rem;
+  color: #555;
 }
 
 .input-area {
   display: flex;
-  padding: 0.75rem;
-  border-top: 1px solid #ccc;
+  padding: 1rem;
   background: #fff;
+  border-top: 1px solid #ccc;
 }
 
 input {
   flex: 1;
   padding: 0.5rem 1rem;
-  font-size: 1rem;
   border: 1px solid #ccc;
   border-radius: 20px;
   outline: none;
 }
 
 button {
-  padding: 0.5rem 1.2rem;
   margin-left: 0.5rem;
-  font-weight: bold;
-  background: #4caf50;
-  color: white;
+  padding: 0.5rem 1.2rem;
   border: none;
   border-radius: 20px;
+  background: #4caf50;
+  color: white;
+  font-weight: bold;
   cursor: pointer;
 }
+
 </style>
