@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, watch } from 'vue';
 import { db } from '../firebase';
 import {
   collection,
@@ -7,7 +7,11 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
-  serverTimestamp
+  serverTimestamp,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore';
 
 const props = defineProps({
@@ -19,10 +23,14 @@ const messages = ref([]);
 const messageText = ref('');
 const messagesEndRef = ref(null);
 const chatBodyRef = ref(null);
+const isTyping = ref(false);
+const typingUsers = ref([]);
+let typingTimer;
+const TYPING_TIMEOUT = 1500;
 
 onMounted(() => {
   const userMessagesRef = collection(db, 'messages');
-  const q = query(userMessagesRef, orderBy('createdAt'))
+  const q = query(userMessagesRef, orderBy('createdAt'));
 
   onSnapshot(q, (snapshot) => {
     messages.value = snapshot.docs.map(doc => ({
@@ -30,8 +38,15 @@ onMounted(() => {
       ...doc.data()
     }));
     nextTick(() => scrollToBottom());
-  })
-})
+  });
+
+  const typingRef = collection(db, 'typing');
+  onSnapshot(typingRef, (snapshot) => {
+    typingUsers.value = snapshot.docs
+      .map(doc => doc.data())
+      .filter(user => user.uid !== props.user.uid);
+  });
+});
 
 const sendMessage = async () => {
   console.log('User:', props.user);
@@ -45,27 +60,45 @@ const sendMessage = async () => {
 
   try {
     await addDoc(
-        collection(db, 'messages'),
-        {
-            text: messageText.value,
-            user: {
-            uid: props.user.uid,
-            displayName: props.user.displayName,
-            },
-            sender: props.user.displayName || 'Anonymous',
-            uid: props.user.uid,
-            photoURL: props.user.photoURL || '',
-            timestamp: serverTimestamp(),
-            createdAt: serverTimestamp(),
-        }
-);
+      collection(db, 'messages'),
+      {
+        text: messageText.value,
+        user: {
+          uid: props.user.uid,
+          displayName: props.user.displayName,
+        },
+        sender: props.user.displayName || 'Anonymous',
+        uid: props.user.uid,
+        photoURL: props.user.photoURL || '',
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      }
+    );
 
+    await deleteDoc(doc(db, 'typing', props.user.uid));
     messageText.value = '';
+    isTyping.value = false;
   } catch (error) {
     console.error('Error sending message:', error);
     alert('Message failed: ' + error.message);
   }
 };
+
+watch(messageText, () => {
+  if (!props.user) return;
+  isTyping.value = true;
+  setDoc(doc(db, 'typing', props.user.uid), {
+    uid: props.user.uid,
+    name: props.user.displayName,
+    timestamp: Date.now()
+  });
+
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    isTyping.value = false;
+    deleteDoc(doc(db, 'typing', props.user.uid));
+  }, TYPING_TIMEOUT);
+});
 
 const scrollToBottom = () => {
   if (chatBodyRef.value) {
@@ -84,40 +117,44 @@ function getColor(seed) {
 </script>
 
 <template>
-    <div class="chat-feed">
-      <div class="chat-header">Welcome to the Theresa-Sharon's Birthday Live Chat</div>
-  
-      <div class="chat-body" ref="chatBodyRef">
-        <transition-group name="fade-list" tag="div" class="messages">
-          <div
-            v-for="msg in messages"
-            :key="msg.id"
-            :class="['message-wrapper', msg.uid === userId ? 'align-right' : 'align-left']"
-          >
-            <div :class="['message-bubble', msg.uid === userId ? 'mine' : 'theirs']">
-              <div class="message-meta">
-                <div v-if="!msg.photoURL" class="avatar" :style="{ backgroundColor: getColor(msg.uid) }">
-                  {{ msg.sender.charAt(0).toUpperCase() }}
-                </div>
-                <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" />
-                <div>
-                  <span class="sender"> {{ msg.uid === userId ? 'You' : msg.sender }}</span>
-                  <span class="time"> {{ formatTime(msg.createdAt?.seconds) }}</span>
-                  <span class="status"> {{ msg.uid === userId ? '✓ Read' : '' }}</span>
-                </div>
+  <div class="chat-feed">
+    <div class="chat-header">Welcome to the Theresa-Sharon's Birthday Live Chat</div>
+
+    <div class="chat-body" ref="chatBodyRef">
+      <transition-group name="fade-list" tag="div" class="messages">
+        <div
+          v-for="msg in messages"
+          :key="msg.id"
+          :class="['message-wrapper', msg.uid === userId ? 'align-right' : 'align-left']"
+        >
+          <div :class="['message-bubble', msg.uid === userId ? 'mine' : 'theirs']">
+            <div class="message-meta">
+              <div v-if="!msg.photoURL" class="avatar" :style="{ backgroundColor: getColor(msg.uid) }">
+                {{ msg.sender.charAt(0).toUpperCase() }}
               </div>
-              <div class="text">{{ msg.text }}</div>
+              <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" />
+              <div>
+                <span class="sender"> {{ msg.uid === userId ? 'You' : msg.sender }}</span>
+                <span class="time"> {{ formatTime(msg.createdAt?.seconds) }}</span>
+                <span class="status"> {{ msg.uid === userId ? '✓ Read' : '' }}</span>
+              </div>
             </div>
+            <div class="text">{{ msg.text }}</div>
+            <div class="delivered-time">{{ formatTime(msg.createdAt?.seconds) }}</div>
           </div>
-        </transition-group>
-      </div>
-  
-      <div class="chat-input">
-        <input v-model="messageText" @keydown.enter="sendMessage" placeholder="Type a message..." />
-        <button @click="sendMessage">Send</button>
+        </div>
+      </transition-group>
+      <div v-if="typingUsers.length" class="typing-indicator">
+        {{ typingUsers[0].name }} is typing...
       </div>
     </div>
-  </template>
+
+    <div class="chat-input">
+      <input v-model="messageText" @keydown.enter="sendMessage" placeholder="Type a message..." />
+      <button @click="sendMessage">Send</button>
+    </div>
+  </div>
+</template>
 
 <script>
 function formatDate(seconds) {
@@ -265,6 +302,20 @@ function formatTime(seconds) {
   font-size: 0.7rem;
   color: #888;
   margin-left: 0.5rem;
+}
+
+.typing-indicator {
+  padding: 0.5rem 1rem;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.delivered-time {
+  text-align: right;
+  font-size: 0.7rem;
+  color: #999;
+  margin-top: 0.3rem;
 }
 
 .fade-list-enter-active,
