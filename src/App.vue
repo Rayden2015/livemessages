@@ -1,7 +1,7 @@
 <template>
-  <div class="app-container">
-    <UserAuth v-if="!user" @signed-in="onSignedIn" />
-    <ChatFeed v-else :user="user" />
+  <div>
+    <UserAuth @signed-in="handleSignedIn" />
+    <ChatFeed v-if="user" :user="user" />
   </div>
 </template>
 
@@ -12,17 +12,7 @@ import UserAuth from './components/UserAuth.vue';
 
 const user = ref(null);
 
-function onSignedIn(authUser) {
-  console.log('User signed in:', authUser);
-  user.value = authUser;
-}
+const handleSignedIn = (signedInUser) => {
+  user.value = signedInUser;
+};
 </script>
-
-<style scoped>
-.app-container {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #e5ddd5;
-}
-</style>
