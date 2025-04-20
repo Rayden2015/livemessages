@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { db } from '../firebase';
 import {
   collection,
@@ -14,9 +14,11 @@ const props = defineProps({
   user: Object
 });
 
+const userId = props.user?.uid;
 const messages = ref([]);
 const messageText = ref('');
 const messagesEndRef = ref(null);
+const chatBodyRef = ref(null);
 
 onMounted(() => {
   const userMessagesRef = collection(db, 'messages');
@@ -27,7 +29,7 @@ onMounted(() => {
       id: doc.id,
       ...doc.data()
     }));
-    console.log('Messages:', messages.value);
+    nextTick(() => scrollToBottom());
   })
 })
 
@@ -66,7 +68,9 @@ const sendMessage = async () => {
 };
 
 const scrollToBottom = () => {
-  messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' });
+  if (chatBodyRef.value) {
+    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight;
+  }
 };
 
 function getColor(seed) {
@@ -81,26 +85,29 @@ function getColor(seed) {
 
 <template>
     <div class="chat-feed">
-      <div class="chat-header">Welcome to the chat 🎉</div>
+      <div class="chat-header">Welcome to the Theresa-Sharon's Birthday Live Chat</div>
   
-      <div class="chat-body">
+      <div class="chat-body" ref="chatBodyRef">
         <transition-group name="fade-list" tag="div" class="messages">
           <div
             v-for="msg in messages"
             :key="msg.id"
-            :class="['message-bubble', msg.uid === user.uid ? 'mine' : 'theirs']"
+            :class="['message-wrapper', msg.uid === userId ? 'align-right' : 'align-left']"
           >
-            <div class="message-meta">
-              <div v-if="!msg.photoURL" class="avatar" :style="{ backgroundColor: getColor(msg.uid) }">
-                {{ msg.sender.charAt(0).toUpperCase() }}
+            <div :class="['message-bubble', msg.uid === userId ? 'mine' : 'theirs']">
+              <div class="message-meta">
+                <div v-if="!msg.photoURL" class="avatar" :style="{ backgroundColor: getColor(msg.uid) }">
+                  {{ msg.sender.charAt(0).toUpperCase() }}
+                </div>
+                <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" />
+                <div>
+                  <span class="sender"> {{ msg.uid === userId ? 'You' : msg.sender }}</span>
+                  <span class="time"> {{ formatTime(msg.createdAt?.seconds) }}</span>
+                  <span class="status"> {{ msg.uid === userId ? '✓ Read' : '' }}</span>
+                </div>
               </div>
-              <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" />
-              <div>
-                <span class="sender">{{ msg.uid === user.uid ? 'You' : msg.sender }}</span>
-                <span class="time">{{ formatTime(msg.createdAt?.seconds) }}</span>
-              </div>
+              <div class="text">{{ msg.text }}</div>
             </div>
-            <div class="text">{{ msg.text }}</div>
           </div>
         </transition-group>
       </div>
@@ -190,6 +197,19 @@ function formatTime(seconds) {
   background: #388e3c;
 }
 
+.message-wrapper {
+  display: flex;
+  width: 100%;
+}
+
+.message-wrapper.align-right {
+  justify-content: flex-end;
+}
+
+.message-wrapper.align-left {
+  justify-content: flex-start;
+}
+
 .message-bubble {
   max-width: 70%;
   padding: 0.75rem 1rem;
@@ -201,13 +221,13 @@ function formatTime(seconds) {
 
 .message-bubble.mine {
   background-color: #dcf8c6;
-  align-self: flex-end;
+  text-align: right;
   border-bottom-right-radius: 0;
 }
 
 .message-bubble.theirs {
   background-color: #fff;
-  align-self: flex-start;
+  text-align: left;
   border-bottom-left-radius: 0;
 }
 
@@ -239,6 +259,12 @@ function formatTime(seconds) {
   border-radius: 50%;
   object-fit: cover;
   margin-right: 0.5rem;
+}
+
+.status {
+  font-size: 0.7rem;
+  color: #888;
+  margin-left: 0.5rem;
 }
 
 .fade-list-enter-active,
