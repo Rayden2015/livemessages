@@ -29,14 +29,41 @@ let typingTimer;
 const TYPING_TIMEOUT = 1500;
 
 onMounted(() => {
+  if ("Notification" in window && Notification.permission !== 'granted') {
+    Notification.requestPermission();
+  }
+
   const userMessagesRef = collection(db, 'messages');
   const q = query(userMessagesRef, orderBy('createdAt'));
 
+  let lastMessageId = null;
+
   onSnapshot(q, (snapshot) => {
-    messages.value = snapshot.docs.map(doc => ({
+    const newMessages = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    // If there's a new message and it's not by you
+    const latest = newMessages[newMessages.length - 1];
+    if (
+      latest &&
+      latest.id !== lastMessageId &&
+      latest.uid !== props.user?.uid
+    ) {
+      const audio = new Audio('/src/assets/notify.mp3');
+      audio.play();
+
+      if (Notification.permission === 'granted') {
+        new Notification(latest.sender || 'Someone', {
+          body: latest.text || 'Sent a message',
+          icon: latest.photoURL || '/src/assets/ts1.png'
+        });
+      }
+    }
+
+    lastMessageId = latest?.id;
+    messages.value = newMessages;
     nextTick(() => scrollToBottom());
   });
 
