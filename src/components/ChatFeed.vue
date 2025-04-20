@@ -112,13 +112,20 @@ function getColor(seed) {
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash);
   }
+
   return colors[Math.abs(hash) % colors.length];
 }
+function formatTime(seconds) {
+  if (!seconds) return '';
+  const date = new Date(seconds * 1000);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 </script>
 
 <template>
   <div class="chat-feed">
-    <div class="chat-header">Welcome to the Theresa-Sharon's Birthday Live Chat</div>
+    <div class="chat-header">TheresaSharon@1</div>
 
     <div class="chat-body" ref="chatBodyRef">
       <transition-group name="fade-list" tag="div" class="messages">
@@ -145,7 +152,10 @@ function getColor(seed) {
         </div>
       </transition-group>
       <div v-if="typingUsers.length" class="typing-indicator">
-        {{ typingUsers[0].name }} is typing...
+        <span v-if="typingUsers.length === 1">{{ typingUsers[0].name }} is typing...</span>
+        <span v-else>
+          {{ typingUsers.map(u => u.name).join(', ') }} are typing...
+        </span>
       </div>
     </div>
 
@@ -156,20 +166,25 @@ function getColor(seed) {
   </div>
 </template>
 
-<script>
-function formatDate(seconds) {
-  if (!seconds) return '';
-  const date = new Date(seconds * 1000);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+<style scoped>
+.container {
+  width: 100%;     /* instead of fixed px */
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-function formatTime(seconds) {
-  if (!seconds) return '';
-  const date = new Date(seconds * 1000);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+@media screen and (max-width: 768px) {
+  .some-class {
+    flex-direction: column;
+    font-size: 14px;
+  }
 }
-</script>
-<style scoped>
+
+.flex-container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .chat-feed {
   display: flex;
   flex-direction: column;
