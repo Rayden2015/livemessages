@@ -44,6 +44,11 @@ onMounted(() => {
       id: doc.id,
       ...doc.data()
     }));
+    newMessages.forEach(msg => {
+      if (msg.reactions) {
+        reactions.value[msg.id] = msg.reactions;
+      }
+    });
 
     // If there's a new message and it's not by you
     const latest = newMessages[newMessages.length - 1];
@@ -148,14 +153,25 @@ function getColor(seed) {
 
 const reactions = ref({});
 
-const reactToMessage = (id, emoji) => {
-  if (!reactions.value[id]) {
-    reactions.value[id] = {};
+const reactToMessage = async (id, emoji) => {
+  const messageRef = doc(db, 'messages', id);
+  const currentReactions = reactions.value[id] || {};
+
+  if (!currentReactions[emoji]) {
+    currentReactions[emoji] = 1;
+  } else {
+    currentReactions[emoji]++;
   }
-  if (!reactions.value[id][emoji]) {
-    reactions.value[id][emoji] = 0;
+
+  reactions.value[id] = { ...currentReactions };
+
+  try {
+    await updateDoc(messageRef, {
+      reactions: reactions.value[id]
+    });
+  } catch (error) {
+    console.error('Failed to update reactions:', error);
   }
-  reactions.value[id][emoji]++;
 };
 
 function formatTime(seconds) {
@@ -183,6 +199,7 @@ function formatTime(seconds) {
               <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" />
               <div>
                 <span class="sender"> {{ msg.uid === userId ? 'You' : msg.sender }}</span>
+                <span>-</span>
                 <span class="time"> {{ formatTime(msg.createdAt?.seconds) }}</span>
                 <span class="status"> {{ msg.uid === userId ? '✓ Read' : '' }}</span>
               </div>

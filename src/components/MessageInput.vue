@@ -6,7 +6,7 @@
         <label><input type="file" @change="handleFileUpload" accept="video/*" hidden /><span title="Send Video">📹</span></label>
         <label><input type="file" @change="handleFileUpload" accept="audio/*" hidden /><span title="Send Audio">🎤</span></label>
       </div>
-      <input v-model="text" placeholder="Type a birthday message..." @keyup.enter="sendMessage" @input="handleTyping" type="text" />
+      <input v-model="text" placeholder="Share your birthday message..." @keyup.enter="sendMessage" @input="handleTyping" type="text" />
       <button class="send-button" @click="sendMessage">➤</button>
     </div>
     <div v-if="isUploading" class="upload-preview">
