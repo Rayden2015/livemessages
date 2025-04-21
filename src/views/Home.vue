@@ -70,4 +70,13 @@ onMounted(() => {
   border-top: 1px solid #ccc;
   background: #f9f9f9;
 }
+.media-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.media-controls span {
+  cursor: pointer;
+  font-size: 1.2rem;
+}
 </style>

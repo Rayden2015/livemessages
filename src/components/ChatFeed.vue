@@ -13,6 +13,7 @@ import {
   updateDoc,
   deleteDoc
 } from 'firebase/firestore';
+import MessageInput from './MessageInput.vue';
 
 const props = defineProps({
   user: Object
@@ -142,6 +143,7 @@ function getColor(seed) {
 
   return colors[Math.abs(hash) % colors.length];
 }
+
 function formatTime(seconds) {
   if (!seconds) return '';
   const date = new Date(seconds * 1000);
@@ -152,7 +154,7 @@ function formatTime(seconds) {
 
 <template>
   <div class="chat-feed">
-    <div class="chat-header">TheresaSharon@1</div>
+    <!-- <div class="chat-header">TheresaSharon@1</div> -->
 
     <div class="chat-body" ref="chatBodyRef">
       <transition-group name="fade-list" tag="div" class="messages">
@@ -173,7 +175,16 @@ function formatTime(seconds) {
                 <span class="status"> {{ msg.uid === userId ? '✓ Read' : '' }}</span>
               </div>
             </div>
-            <div class="text">{{ msg.text }}</div>
+            <div v-if="msg.type === 'text'" class="text">{{ msg.content }}</div>
+            <img v-else-if="msg.type === 'image'" :src="msg.content" class="chat-media" />
+            <video v-else-if="msg.type === 'video'" controls class="chat-media">
+              <source :src="msg.content" />
+              Your browser does not support video.
+            </video>
+            <audio v-else-if="msg.type === 'audio'" controls class="chat-media">
+              <source :src="msg.content" />
+              Your browser does not support audio.
+            </audio>
             <div class="delivered-time">{{ formatTime(msg.createdAt?.seconds) }}</div>
           </div>
         </div>
@@ -186,9 +197,12 @@ function formatTime(seconds) {
       </div>
     </div>
 
-    <div class="chat-input">
+    <!-- <div class="chat-input">
       <input v-model="messageText" @keydown.enter="sendMessage" placeholder="Type a message..." />
       <button @click="sendMessage">Send</button>
+    </div> -->
+    <div class="chat-input">
+      <MessageInput :user="props.user" />
     </div>
   </div>
 </template>
@@ -215,7 +229,7 @@ function formatTime(seconds) {
 .chat-feed {
   display: flex;
   flex-direction: column;
-  height: 100vh; /* Full height */
+  height: 85vh; /* Full height */
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
@@ -227,12 +241,13 @@ function formatTime(seconds) {
 }
 
 .chat-header {
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.7);
+  background: #075e54;
+  color: white;
   padding: 0.75rem;
   font-weight: bold;
   text-align: center;
   border-bottom: 1px solid #ccc;
+  font-size: 1rem;
 }
 
 .chat-body {
@@ -246,37 +261,11 @@ function formatTime(seconds) {
 
 .chat-input {
   flex-shrink: 0;
-  display: flex;
-  padding: 1rem;
-  background: #fff;
+  padding: 0.5rem 0.75rem;
+  background: #f0f0f0;
   border-top: 1px solid #ccc;
 }
 
-.chat-input input {
-  flex: 1;
-  padding: 0.6rem 1rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 20px;
-  outline: none;
-}
-
-.chat-input button {
-  margin-left: 0.5rem;
-  padding: 0.6rem 1.2rem;
-  font-size: 1rem;
-  border: none;
-  border-radius: 20px;
-  background: #4caf50;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.chat-input button:hover {
-  background: #388e3c;
-}
 
 .message-wrapper {
   display: flex;
@@ -292,23 +281,25 @@ function formatTime(seconds) {
 }
 
 .message-bubble {
-  max-width: 70%;
-  padding: 0.75rem 1rem;
+  max-width: 75%;
+  padding: 0.6rem 0.9rem;
   border-radius: 16px;
-  position: relative;
+  font-size: 0.95rem;
   word-break: break-word;
+  position: relative;
+  background: #fff;
   line-height: 1.4;
 }
 
 .message-bubble.mine {
   background-color: #dcf8c6;
-  text-align: right;
+  align-self: flex-end;
   border-bottom-right-radius: 0;
 }
 
 .message-bubble.theirs {
-  background-color: #fff;
-  text-align: left;
+  background-color: white;
+  align-self: flex-start;
   border-bottom-left-radius: 0;
 }
 
@@ -373,5 +364,23 @@ function formatTime(seconds) {
 .fade-list-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+@media screen and (max-width: 600px) {
+  .chat-header {
+    font-size: 0.9rem;
+  }
+  .message-bubble {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.8rem;
+  }
+}
+
+
+.chat-media {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 10px;
+  margin-top: 0.5rem;
 }
 </style>

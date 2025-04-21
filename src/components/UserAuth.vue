@@ -100,7 +100,7 @@ onMounted(() => {
       <div class="card">
         <form @submit.prevent="phoneLogin">
           <label>Phone</label>
-          <input v-model="phone" placeholder="Phone number" />
+          <input v-model="phone" placeholder="Phone number +23354*******" />
           <div id="recaptcha-container"></div>
           <button type="submit">
             <span class="icon">📱</span> Login with Phone
