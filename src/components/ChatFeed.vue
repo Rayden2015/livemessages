@@ -21,13 +21,13 @@ const props = defineProps({
 
 const userId = props.user?.uid;
 const messages = ref([]);
-const messageText = ref('');
 const messagesEndRef = ref(null);
 const chatBodyRef = ref(null);
 const isTyping = ref(false);
 const typingUsers = ref([]);
 let typingTimer;
 const TYPING_TIMEOUT = 1500;
+const showEmojiPicker = ref(false);
 
 onMounted(() => {
   if ("Notification" in window && Notification.permission !== 'granted') {
@@ -76,45 +76,10 @@ onMounted(() => {
   });
 });
 
-const sendMessage = async () => {
-  console.log('User:', props.user);
-  console.log('Text:', messageText.value);
-
-  if (!messageText.value.trim()) return;
-  if (!props.user) {
-    alert('User not signed in');
-    return;
-  }
-
-  try {
-    await addDoc(
-      collection(db, 'messages'),
-      {
-        text: messageText.value,
-        user: {
-          uid: props.user.uid,
-          displayName: props.user.displayName,
-        },
-        sender: props.user.displayName || 'Anonymous',
-        uid: props.user.uid,
-        photoURL: props.user.photoURL || '',
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      }
-    );
-
-    await deleteDoc(doc(db, 'typing', props.user.uid));
-    messageText.value = '';
-    isTyping.value = false;
-  } catch (error) {
-    console.error('Error sending message:', error);
-    alert('Message failed: ' + error.message);
-  }
-};
-
-watch(messageText, () => {
+const handleTyping = () => {
   if (!props.user) return;
   isTyping.value = true;
+
   setDoc(doc(db, 'typing', props.user.uid), {
     uid: props.user.uid,
     name: props.user.displayName,
@@ -126,7 +91,44 @@ watch(messageText, () => {
     isTyping.value = false;
     deleteDoc(doc(db, 'typing', props.user.uid));
   }, TYPING_TIMEOUT);
-});
+};
+
+
+
+ 
+
+
+const handleSend = async (payload) => {
+  if (!payload || !props.user) return;
+
+  const messageData = {
+    sender: props.user.displayName || 'Anonymous',
+    uid: props.user.uid,
+    photoURL: props.user.photoURL || '',
+    timestamp: serverTimestamp(),
+    createdAt: serverTimestamp()
+  };
+
+  if (typeof payload === 'string') {
+    messageData.type = 'text';
+    messageData.content = payload;
+  } else if (payload.type && payload.content) {
+    messageData.type = payload.type;
+    messageData.content = payload.content;
+  } else {
+    return;
+  }
+
+  await addDoc(collection(db, 'messages'), messageData);
+  await deleteDoc(doc(db, 'typing', props.user.uid));
+  isTyping.value = false;
+
+  nextTick(() => {
+    scrollToBottom();
+    const inputEl = document.querySelector('.message-input input[type="text"]');
+    if (inputEl) inputEl.blur();
+  });
+};
 
 const scrollToBottom = () => {
   if (chatBodyRef.value) {
@@ -154,8 +156,6 @@ function formatTime(seconds) {
 
 <template>
   <div class="chat-feed">
-    <!-- <div class="chat-header">TheresaSharon@1</div> -->
-
     <div class="chat-body" ref="chatBodyRef">
       <transition-group name="fade-list" tag="div" class="messages">
         <div
@@ -197,12 +197,12 @@ function formatTime(seconds) {
       </div>
     </div>
 
-    <!-- <div class="chat-input">
-      <input v-model="messageText" @keydown.enter="sendMessage" placeholder="Type a message..." />
-      <button @click="sendMessage">Send</button>
-    </div> -->
     <div class="chat-input">
-      <MessageInput :user="props.user" />
+      <MessageInput
+        :user="props.user"
+        @send="handleSend"
+        @typing="handleTyping"
+      />
     </div>
   </div>
 </template>
