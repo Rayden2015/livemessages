@@ -146,6 +146,18 @@ function getColor(seed) {
   return colors[Math.abs(hash) % colors.length];
 }
 
+const reactions = ref({});
+
+const reactToMessage = (id, emoji) => {
+  if (!reactions.value[id]) {
+    reactions.value[id] = {};
+  }
+  if (!reactions.value[id][emoji]) {
+    reactions.value[id][emoji] = 0;
+  }
+  reactions.value[id][emoji]++;
+};
+
 function formatTime(seconds) {
   if (!seconds) return '';
   const date = new Date(seconds * 1000);
@@ -186,6 +198,16 @@ function formatTime(seconds) {
               Your browser does not support audio.
             </audio>
             <div class="delivered-time">{{ formatTime(msg.createdAt?.seconds) }}</div>
+            <div class="reaction-bar">
+              <span
+                v-for="emoji in ['❤️', '😂', '👍', '🔥', '😮']"
+                :key="emoji"
+                @click="reactToMessage(msg.id, emoji)"
+              >
+                {{ emoji }}
+                <small v-if="reactions[msg.id] && reactions[msg.id][emoji]">({{ reactions[msg.id][emoji] }})</small>
+              </span>
+            </div>
           </div>
         </div>
       </transition-group>
@@ -208,10 +230,29 @@ function formatTime(seconds) {
 </template>
 
 <style scoped>
+
 .container {
   width: 100%;     /* instead of fixed px */
   max-width: 1200px;
   margin: 0 auto;
+
+}
+.reaction-bar {
+  margin-top: 0.3rem;
+  font-size: 1.2rem;
+  display: flex;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.reaction-bar span.selected {
+  transform: scale(1.2);
+  text-shadow: 0 0 2px #0002;
+}
+
+.selected-reaction {
+  margin-top: 0.2rem;
+  font-size: 1.1rem;
 }
 
 @media screen and (max-width: 768px) {
