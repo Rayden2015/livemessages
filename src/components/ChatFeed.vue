@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue';
-import { getPerformance } from 'firebase/performance';
+import { perf } from '../firebase';
+import { trace } from 'firebase/performance';
 import { db } from '../firebase';
 import {
   collection,
@@ -16,7 +17,15 @@ import {
 } from 'firebase/firestore';
 import { defineAsyncComponent } from 'vue';
 
-const perf = getPerformance();
+
+
+let userHasInteracted = false;
+
+if (typeof window !== 'undefined') {
+  document.addEventListener('click', () => {
+    userHasInteracted = true;
+  }, { once: true });
+}
 
 const MessageInput = defineAsyncComponent(() => import('./MessageInput.vue'));
 
@@ -84,8 +93,8 @@ onMounted(() => {
   let lastMessageId = null;
 
   // Firebase Performance trace for chat messages load
-  const trace = perf.trace('chat_messages_load');
-  trace.start();
+  const traceInstance = trace(perf, 'chat_messages_load');
+  traceInstance.start();
 
   onSnapshot(q, (snapshot) => {
     const newMessages = snapshot.docs.map(doc => ({
@@ -105,8 +114,12 @@ onMounted(() => {
       latest.id !== lastMessageId &&
       latest.uid !== props.user?.uid
     ) {
-      const audio = new Audio('/src/assets/notify.mp3');
-      audio.play();
+      if (userHasInteracted) {
+        const audio = new Audio('/src/assets/notify.mp3');
+        audio.play().catch((e) => {
+          console.warn('Audio play failed:', e);
+        });
+      }
 
       if (Notification.permission === 'granted') {
         new Notification(latest.sender || 'Someone', {
@@ -118,7 +131,7 @@ onMounted(() => {
 
     lastMessageId = latest?.id;
     messages.value = newMessages;
-    trace.stop();
+    traceInstance.stop();
     nextTick(() => scrollToBottom());
   });
 
@@ -299,7 +312,7 @@ function formatTime(seconds) {
               <div v-if="!msg.photoURL" class="avatar" :style="{ backgroundColor: getColor(msg.uid) }">
                 {{ msg.sender.charAt(0).toUpperCase() }}
               </div>
-              <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" />
+              <img v-else class="avatar-img" :src="msg.photoURL" alt="avatar" loading="lazy"/>
               <div>
                 <span class="sender"> {{ msg.uid === userId ? 'You' : msg.sender }}</span>
                 <span>-</span>

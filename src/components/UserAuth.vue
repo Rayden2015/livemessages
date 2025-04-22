@@ -3,7 +3,7 @@
 import { ref, onMounted } from 'vue';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier, createUserWithEmailAndPassword } from '../firebase';
 import { trace } from 'firebase/performance';
-import { performance } from '../firebase';
+import { perf } from '../firebase';
 // If using Firebase config, import VITE_FIREBASE_API_KEY from '@/config' (see router for dynamic import)
 
 const emit = defineEmits(['send', 'signed-in']);
@@ -14,7 +14,7 @@ const confirmPassword = ref('');
 const phone = ref('');
 
 const googleLogin = async () => {
-  const googleTrace = trace(performance, 'google_login');
+  const googleTrace = trace(perf, 'google_login');
   await googleTrace.start();
   try {
     const result = await signInWithPopup(auth, provider);
@@ -29,7 +29,7 @@ const googleLogin = async () => {
 const loading = ref(false);
 
 const emailLogin = async () => {
-  const emailTrace = trace(performance, 'email_login');
+  const emailTrace = trace(perf, 'email_login');
   await emailTrace.start();
   // Client-side password match check before login/account creation
   if (password.value !== confirmPassword.value) {
@@ -58,7 +58,7 @@ const emailLogin = async () => {
 };
 
 const phoneLogin = async () => {
-  const phoneTrace = trace(performance, 'phone_login');
+  const phoneTrace = trace(perf, 'phone_login');
   await phoneTrace.start();
   try {
     const confirmation = await signInWithPhoneNumber(auth, phone.value, recaptchaVerifier);
