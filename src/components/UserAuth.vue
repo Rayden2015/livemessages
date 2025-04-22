@@ -1,11 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { auth, provider, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier } from '../firebase';
+import { auth, provider, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier, createUserWithEmailAndPassword } from '../firebase';
 
 const emit = defineEmits(['send', 'signed-in']);
 
 const email = ref('');
 const password = ref('');
+const confirmPassword = ref('');
 const phone = ref('');
 
 const googleLogin = async () => {
@@ -21,14 +22,27 @@ const googleLogin = async () => {
 const loading = ref(false);
 
 const emailLogin = async () => {
-  loading.value = true;
+  // Client-side password match check before login/account creation
+  if (password.value !== confirmPassword.value) {
+    alert("Passwords do not match.");
+    return;
+  }
   try {
     const result = await signInWithEmailAndPassword(auth, email.value, password.value);
     emit('signed-in', result.user);
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    if (error.code === 'auth/user-not-found') {
+      // Try creating a new account
+      try {
+        const result = await createUserWithEmailAndPassword(auth, email.value, password.value);
+        alert('Account created successfully!');
+        emit('signed-in', result.user);
+      } catch (createError) {
+        alert(`Failed to create account: ${createError.message}`);
+      }
+    } else {
+      alert(`Login failed: ${error.message}`);
+    }
   }
 };
 
@@ -69,7 +83,8 @@ onMounted(() => {
 
 <template>
   <div class="auth">
-    <h1 class="title">THERESA-SHARON @ 1</h1>
+    <h1 class="title">🎉 Theresa-Sharon @ 1 🎉</h1>
+    <h2 class="tagline">Join the celebration — Share your birthday wishes with us!</h2>
     <transition name="fade">
       <div class="card">
         <button @click="googleLogin">
@@ -84,6 +99,8 @@ onMounted(() => {
           <input v-model="email" placeholder="Email" />
           <label>Password</label>
           <input v-model="password" type="password" placeholder="Password" />
+          <label>Confirm Password</label>
+          <input v-model="confirmPassword" type="password" placeholder="Confirm Password" />
           <button type="submit" :disabled="loading">
             <span class="icon">📧</span>
             <template v-if="loading">
@@ -143,6 +160,14 @@ onMounted(() => {
   color: #333;
 }
 
+.tagline {
+  font-size: 1rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-style: italic;
+}
+
 .auth button {
   width: 100%;
   padding: 0.75rem;
@@ -176,7 +201,7 @@ onMounted(() => {
 }
 
 .auth input {
-  width: 100%;
+  width: 90%;
   padding: 0.6rem;
   margin-bottom: 0.75rem;
   border: 1px solid #ccc;
@@ -194,6 +219,7 @@ onMounted(() => {
   border-radius: 8px;
   background: #f9f9f9;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 5%;
 }
 
 .card form {

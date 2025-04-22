@@ -5,7 +5,7 @@
     </div>
     <div v-else>
       <div class="chat-header">
-        <span>Welcome, {{ user.displayName || 'Guest' }}</span>
+        <span>Welcome, {{ user.displayName || 'Guest' }} to THERESA-SHARON @ ONE</span>
         <button @click="logout">Logout</button>
       </div>
       <ChatFeed :user="user" />

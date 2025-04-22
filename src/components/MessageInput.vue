@@ -51,29 +51,39 @@ const handleFileUpload = async (e) => {
                file.type.startsWith('audio') ? 'audio' : null;
   if (!type) return;
 
+  // Clean up any old previews
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
   previewUrl.value = URL.createObjectURL(file);
   isUploading.value = true;
   uploadProgress.value = 0;
 
-  const fileRef = storageRef(storage, `uploads/${Date.now()}_${file.name}`);
-  const uploadTask = uploadBytesResumable(fileRef, file);
+  try {
+    const fileRef = storageRef(storage, `uploads/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(fileRef, file);
 
-  uploadTask.on(
-    'state_changed',
-    (snapshot) => {
-      uploadProgress.value = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-    },
-    (error) => {
-      console.error('Upload failed', error);
-      isUploading.value = false;
-    },
-    async () => {
-      const url = await getDownloadURL(uploadTask.snapshot.ref);
-      emit('send', { type, content: url });
-      isUploading.value = false;
-      previewUrl.value = '';
-    }
-  );
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        uploadProgress.value = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      },
+      (error) => {
+        console.error('Upload failed', error);
+        isUploading.value = false;
+        previewUrl.value = '';
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        emit('send', { type, content: url });
+        isUploading.value = false;
+        URL.revokeObjectURL(previewUrl.value);
+        previewUrl.value = '';
+      }
+    );
+  } catch (err) {
+    console.error('Unexpected upload error:', err);
+    isUploading.value = false;
+    previewUrl.value = '';
+  }
 };
 </script>
 

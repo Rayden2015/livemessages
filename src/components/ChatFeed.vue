@@ -29,6 +29,39 @@ let typingTimer;
 const TYPING_TIMEOUT = 1500;
 const showEmojiPicker = ref(false);
 
+const editingMessageId = ref(null);
+const editingText = ref('');
+
+const startEditing = (msg) => {
+  editingMessageId.value = msg.id;
+  editingText.value = msg.content;
+};
+
+const cancelEditing = () => {
+  editingMessageId.value = null;
+  editingText.value = '';
+};
+
+const saveEditedMessage = async () => {
+  if (!editingText.value.trim()) return;
+  const msgRef = doc(db, 'messages', editingMessageId.value);
+  await updateDoc(msgRef, {
+    content: editingText.value,
+    edited: true
+  });
+  cancelEditing();
+};
+
+const replyingTo = ref(null);
+
+const startReplying = (msg) => {
+  replyingTo.value = msg;
+};
+
+const clearReplying = () => {
+  replyingTo.value = null;
+};
+
 onMounted(() => {
   if ("Notification" in window && Notification.permission !== 'granted') {
     Notification.requestPermission();
@@ -124,15 +157,35 @@ const handleSend = async (payload) => {
     return;
   }
 
-  await addDoc(collection(db, 'messages'), messageData);
-  await deleteDoc(doc(db, 'typing', props.user.uid));
-  isTyping.value = false;
+  if (replyingTo.value) {
+    messageData.replyTo = {
+      id: replyingTo.value.id,
+      content: replyingTo.value.content,
+      sender: replyingTo.value.sender,
+    };
+  }
+  replyingTo.value = null;
 
-  nextTick(() => {
-    scrollToBottom();
-    const inputEl = document.querySelector('.message-input input[type="text"]');
-    if (inputEl) inputEl.blur();
-  });
+  try {
+    await addDoc(collection(db, 'messages'), messageData);
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    alert('Failed to send message.');
+  } finally {
+    await deleteDoc(doc(db, 'typing', props.user.uid));
+    isTyping.value = false;
+
+    nextTick(() => {
+      scrollToBottom();
+      const inputEl = document.querySelector('.message-input input[type="text"]');
+      if (inputEl) inputEl.blur();
+    });
+  }
+};
+
+const handleSendReply = (payload) => {
+  handleSend(payload);
+  clearReplying();
 };
 
 const scrollToBottom = () => {
@@ -174,6 +227,37 @@ const reactToMessage = async (id, emoji) => {
   }
 };
 
+// Toggle reaction: add or remove emoji reaction by user
+const toggleReaction = async (id, emoji) => {
+  const messageRef = doc(db, 'messages', id);
+  const currentReactions = reactions.value[id] || {};
+  const userKey = `${props.user?.uid}_${emoji}`;
+
+  if (currentReactions[userKey]) {
+    delete currentReactions[userKey];
+  } else {
+    currentReactions[userKey] = true;
+  }
+
+  // Group reactions by emoji and count
+  const groupedReactions = {};
+  Object.keys(currentReactions).forEach(key => {
+    const em = key.split('_')[1];
+    if (!groupedReactions[em]) groupedReactions[em] = 1;
+    else groupedReactions[em]++;
+  });
+
+  reactions.value[id] = groupedReactions;
+
+  try {
+    await updateDoc(messageRef, {
+      reactions: { ...currentReactions }
+    });
+  } catch (error) {
+    console.error('Failed to toggle reaction:', error);
+  }
+};
+
 function formatTime(seconds) {
   if (!seconds) return '';
   const date = new Date(seconds * 1000);
@@ -184,6 +268,9 @@ function formatTime(seconds) {
 
 <template>
   <div class="chat-feed">
+    <div class="chat-gallery-link">
+      <a href="/gallery" target="_blank">📸 View Gallery</a>
+    </div>
     <div class="chat-body" ref="chatBodyRef">
       <transition-group name="fade-list" tag="div" class="messages">
         <div
@@ -204,22 +291,34 @@ function formatTime(seconds) {
                 <span class="status"> {{ msg.uid === userId ? '✓ Read' : '' }}</span>
               </div>
             </div>
+            <div v-if="msg.replyTo" class="reply-preview">
+              <small>Replying to {{ msg.replyTo.sender }}: "{{ msg.replyTo.content }}"</small>
+            </div>
             <div v-if="msg.type === 'text'" class="text">{{ msg.content }}</div>
-            <img v-else-if="msg.type === 'image'" :src="msg.content" class="chat-media" />
-            <video v-else-if="msg.type === 'video'" controls class="chat-media">
+            <img v-else-if="msg.type === 'image'" :src="msg.content" class="chat-media" loading="lazy" />
+            <video v-else-if="msg.type === 'video'" controls class="chat-media" preload="none">
               <source :src="msg.content" />
               Your browser does not support video.
             </video>
-            <audio v-else-if="msg.type === 'audio'" controls class="chat-media">
+            <audio v-else-if="msg.type === 'audio'" controls class="chat-media" preload="none">
               <source :src="msg.content" />
               Your browser does not support audio.
             </audio>
-            <div class="delivered-time">{{ formatTime(msg.createdAt?.seconds) }}</div>
+            <!-- <div class="delivered-time">{{ formatTime(msg.createdAt?.seconds) }}</div> -->
+            <div class="dropdown-controls">
+              <details>
+                <summary>⋮</summary>
+                <div class="dropdown-content">
+                  <button @click="startReplying(msg)">↩ Reply</button>
+                  <button v-show="msg.uid === userId" @click="startEditing(msg)">✏ Edit</button>
+                </div>
+              </details>
+            </div>
             <div class="reaction-bar">
               <span
                 v-for="emoji in ['❤️', '😂', '👍', '🔥', '😮']"
                 :key="emoji"
-                @click="reactToMessage(msg.id, emoji)"
+                @click="toggleReaction(msg.id, emoji)"
               >
                 {{ emoji }}
                 <small v-if="reactions[msg.id] && reactions[msg.id][emoji]">({{ reactions[msg.id][emoji] }})</small>
@@ -237,10 +336,22 @@ function formatTime(seconds) {
     </div>
 
     <div class="chat-input">
+      <div v-if="replyingTo" class="replying-preview">
+        Replying to <strong>{{ replyingTo.sender }}</strong>: "{{ replyingTo.content }}"
+        <button @click="clearReplying" aria-label="Cancel reply">✕</button>
+      </div>
+      <div v-if="editingMessageId" class="edit-box">
+        <input v-model="editingText" placeholder="Edit message..." />
+        <button @click="saveEditedMessage">Save</button>
+        <button @click="cancelEditing">Cancel</button>
+      </div>
       <MessageInput
+        v-else
         :user="props.user"
-        @send="handleSend"
+        :replyingTo="replyingTo"
+        @send="handleSendReply"
         @typing="handleTyping"
+        @clear-reply="clearReplying"
       />
     </div>
   </div>
@@ -324,18 +435,40 @@ function formatTime(seconds) {
   border-top: 1px solid #ccc;
 }
 
+.replying-preview {
+  background: #e0e0e0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.replying-preview button {
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+}
 
 .message-wrapper {
   display: flex;
   width: 100%;
+  margin-bottom: 0.75rem;
 }
 
 .message-wrapper.align-right {
   justify-content: flex-end;
+  margin-bottom: 0.75rem;
 }
 
 .message-wrapper.align-left {
   justify-content: flex-start;
+  margin-bottom: 0.75rem;
 }
 
 .message-bubble {
@@ -440,5 +573,71 @@ function formatTime(seconds) {
   max-height: 300px;
   border-radius: 10px;
   margin-top: 0.5rem;
+}
+
+.message-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.reply-preview {
+  font-style: italic;
+  color: #555;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+
+.edit-box {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.edit-box input {
+  flex: 1;
+  padding: 0.4rem;
+  font-size: 1rem;
+}
+
+.chat-gallery-link {
+  text-align: right;
+  padding: 0.3rem 1rem;
+  font-size: 0.9rem;
+}
+
+.chat-gallery-link a {
+  color: #2196f3;
+  text-decoration: none;
+}
+.dropdown-controls {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  font-size: 1.2rem;
+}
+
+.dropdown-controls details {
+  cursor: pointer;
+}
+
+.dropdown-controls summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.dropdown-content {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  position: absolute;
+  top: 1.5rem;
+  right: 0;
+  z-index: 10;
 }
 </style>
