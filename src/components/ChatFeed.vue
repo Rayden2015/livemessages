@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue';
-import { perf } from '../firebase';
+import { getPerformance } from 'firebase/performance';
+import { app } from '../firebase';
 import { trace } from 'firebase/performance';
 import { db } from '../firebase';
 import {
@@ -20,6 +21,7 @@ import { defineAsyncComponent } from 'vue';
 
 
 let userHasInteracted = false;
+const perf = getPerformance(app);
 
 if (typeof window !== 'undefined') {
   document.addEventListener('click', () => {
