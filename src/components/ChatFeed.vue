@@ -17,17 +17,39 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { defineAsyncComponent } from 'vue';
-
-
+import notifySound from '../assets/notify.mp3';
 
 let userHasInteracted = false;
-const perf = getPerformance(app);
+
+// Try to play audio on page load
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const audio = new Audio(notifySound);
+      await audio.play();
+      userHasInteracted = true;
+      console.log('[Audio] notify.mp3 played automatically on page load.');
+    } catch (err) {
+      console.warn('[Audio] Autoplay on page load failed:', err);
+    }
+  });
+}
+
+const enableAudio = () => {
+  userHasInteracted = true;
+  // Preload the notification audio to enable playback later
+  const preloadAudio = new Audio(notifySound);
+  preloadAudio.load();
+  console.log('[Audio] User interaction detected, audio enabled.');
+};
 
 if (typeof window !== 'undefined') {
-  document.addEventListener('click', () => {
-    userHasInteracted = true;
-  }, { once: true });
+  ['click', 'touchstart','keydown'].forEach(evt => {
+    document.addEventListener(evt, enableAudio, { once: true });
+  });
 }
+
+const perf = getPerformance(app);
 
 const MessageInput = defineAsyncComponent(() => import('./MessageInput.vue'));
 
@@ -131,17 +153,17 @@ onMounted(async () => {
       latest.uid !== props.user?.uid
     ) {
       if (userHasInteracted) {
-        const audio = new Audio('/src/assets/notify.mp3');
+        const audio = new Audio(notifySound);
         audio.play().catch((e) => {
           console.warn('Audio play failed:', e);
         });
-      }
 
-      if (Notification.permission === 'granted') {
-        new Notification(latest.sender || 'Someone', {
-          body: latest.text || 'Sent a message',
-          icon: latest.photoURL || '/src/assets/ts1.png'
-        });
+        if (Notification.permission === 'granted') {
+          new Notification(latest.sender || 'Someone', {
+            body: latest.text || 'Sent a message',
+            icon: latest.photoURL || '/src/assets/ts1.png'
+          });
+        }
       }
     }
 
