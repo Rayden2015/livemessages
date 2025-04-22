@@ -78,10 +78,11 @@ const clearReplying = () => {
   replyingTo.value = null;
 };
 
-onMounted(() => {
+onMounted(async () => {
   // Preload /gallery route
   const link = document.createElement('link');
   link.rel = 'prefetch';
+  link.as = 'document';
   link.href = '/gallery';
   document.head.appendChild(link);
 
@@ -95,8 +96,15 @@ onMounted(() => {
   let lastMessageId = null;
 
   // Firebase Performance trace for chat messages load
-  const traceInstance = trace(perf, 'chat_messages_load');
-  traceInstance.start();
+  let traceInstance;
+  if (perf) {
+    try {
+      traceInstance = trace(perf, 'chat_messages_load');
+      await traceInstance.start();
+    } catch (err) {
+      console.warn('Trace start failed:', err.message);
+    }
+  }
 
   onSnapshot(q, (snapshot) => {
     const newMessages = snapshot.docs.map(doc => ({
@@ -104,9 +112,15 @@ onMounted(() => {
       ...doc.data()
     }));
     newMessages.forEach(msg => {
+      const grouped = {};
       if (msg.reactions) {
-        reactions.value[msg.id] = msg.reactions;
+        Object.keys(msg.reactions).forEach(key => {
+          const [, emoji] = key.split('_');
+          if (!grouped[emoji]) grouped[emoji] = 1;
+          else grouped[emoji]++;
+        });
       }
+      reactions.value[msg.id] = grouped;
     });
 
     // If there's a new message and it's not by you
@@ -133,7 +147,13 @@ onMounted(() => {
 
     lastMessageId = latest?.id;
     messages.value = newMessages;
-    traceInstance.stop();
+    if (traceInstance && typeof traceInstance.stop === 'function') {
+      try {
+        traceInstance.stop();
+      } catch (e) {
+        console.warn('Trace stop failed:', e.message);
+      }
+    }
     nextTick(() => scrollToBottom());
   });
 
@@ -261,7 +281,9 @@ const reactToMessage = async (id, emoji) => {
 // Toggle reaction: add or remove emoji reaction by user
 const toggleReaction = async (id, emoji) => {
   const messageRef = doc(db, 'messages', id);
-  const currentReactions = reactions.value[id] || {};
+  // Get the current full reactions object from Firestore (from onSnapshot) if available
+  // Or initialize as empty object
+  const currentReactions = messages.value.find(m => m.id === id && m.reactions) ? { ...messages.value.find(m => m.id === id).reactions } : {};
   const userKey = `${props.user?.uid}_${emoji}`;
 
   if (currentReactions[userKey]) {
@@ -270,15 +292,14 @@ const toggleReaction = async (id, emoji) => {
     currentReactions[userKey] = true;
   }
 
-  // Group reactions by emoji and count
-  const groupedReactions = {};
+  // Recalculate grouped counts only for display
+  const grouped = {};
   Object.keys(currentReactions).forEach(key => {
-    const em = key.split('_')[1];
-    if (!groupedReactions[em]) groupedReactions[em] = 1;
-    else groupedReactions[em]++;
+    const [, emoji] = key.split('_');
+    if (!grouped[emoji]) grouped[emoji] = 1;
+    else grouped[emoji]++;
   });
-
-  reactions.value[id] = groupedReactions;
+  reactions.value[id] = grouped;
 
   try {
     await updateDoc(messageRef, {
