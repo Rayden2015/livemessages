@@ -13,5 +13,7 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },"performance": {
+    "instrumentation": true
   }
 }

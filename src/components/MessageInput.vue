@@ -10,7 +10,7 @@
       <button class="send-button" @click="sendMessage">➤</button>
     </div>
     <div v-if="isUploading" class="upload-preview">
-      <img v-if="previewUrl" :src="previewUrl" alt="preview" class="preview-img" />
+      <img v-if="previewUrl" :src="previewUrl" alt="preview" class="preview-img" loading="lazy" />
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
       </div>
@@ -21,7 +21,22 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 import { ref as storageRef, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
-import { storage } from '../firebase';
+import { trace } from 'firebase/performance';
+import { getPerformance } from 'firebase/performance';
+import { onMounted } from 'vue';
+
+let perf;
+let uploadTrace;
+
+onMounted(async () => {
+  const mod = await import('../firebase');
+  perf = getPerformance(mod.app);
+});
+
+let storage;
+import('../firebase').then(mod => {
+  storage = mod.storage;
+});
 
 const emit = defineEmits(['send', 'typing', 'upload']);
 const props = defineProps(['user']);
@@ -59,6 +74,10 @@ const handleFileUpload = async (e) => {
 
   try {
     const fileRef = storageRef(storage, `uploads/${Date.now()}_${file.name}`);
+    if (perf) {
+      uploadTrace = trace(perf, 'media_upload');
+      uploadTrace.start();
+    }
     const uploadTask = uploadBytesResumable(fileRef, file);
 
     uploadTask.on(
@@ -69,6 +88,7 @@ const handleFileUpload = async (e) => {
       (error) => {
         console.error('Upload failed', error);
         isUploading.value = false;
+        if (uploadTrace) uploadTrace.stop();
         previewUrl.value = '';
       },
       async () => {
@@ -77,6 +97,7 @@ const handleFileUpload = async (e) => {
         isUploading.value = false;
         URL.revokeObjectURL(previewUrl.value);
         previewUrl.value = '';
+        if (uploadTrace) uploadTrace.stop();
       }
     );
   } catch (err) {

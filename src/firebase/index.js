@@ -19,6 +19,13 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const storage = getStorage(app);
-const analytics = getAnalytics(app);
+// const analytics = getAnalytics(app);
 
-export { app, auth, provider, db, storage, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier, analytics, createUserWithEmailAndPassword };
+// Optional: Analytics (only works in production domains)
+isSupported().then((yes) => {
+  if (yes) getAnalytics(app);
+});
+
+const performance = getPerformance(app); // ✅ Performance enabled
+
+export { app, auth, provider, db, storage, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier, analytics, createUserWithEmailAndPassword, performance };

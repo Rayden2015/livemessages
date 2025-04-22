@@ -1,6 +1,10 @@
+// This component supports dynamic import for code splitting
 <script setup>
 import { ref, onMounted } from 'vue';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier, createUserWithEmailAndPassword } from '../firebase';
+import { trace } from 'firebase/performance';
+import { performance } from '../firebase';
+// If using Firebase config, import VITE_FIREBASE_API_KEY from '@/config' (see router for dynamic import)
 
 const emit = defineEmits(['send', 'signed-in']);
 
@@ -10,6 +14,8 @@ const confirmPassword = ref('');
 const phone = ref('');
 
 const googleLogin = async () => {
+  const googleTrace = trace(performance, 'google_login');
+  await googleTrace.start();
   try {
     const result = await signInWithPopup(auth, provider);
     emit('signed-in', result.user);
@@ -17,14 +23,18 @@ const googleLogin = async () => {
     console.error('Google login failed:', error);
     alert(error.message);
   }
+  await googleTrace.stop();
 };
 
 const loading = ref(false);
 
 const emailLogin = async () => {
+  const emailTrace = trace(performance, 'email_login');
+  await emailTrace.start();
   // Client-side password match check before login/account creation
   if (password.value !== confirmPassword.value) {
     alert("Passwords do not match.");
+    await emailTrace.stop();
     return;
   }
   try {
@@ -44,9 +54,12 @@ const emailLogin = async () => {
       alert(`Login failed: ${error.message}`);
     }
   }
+  await emailTrace.stop();
 };
 
 const phoneLogin = async () => {
+  const phoneTrace = trace(performance, 'phone_login');
+  await phoneTrace.start();
   try {
     const confirmation = await signInWithPhoneNumber(auth, phone.value, recaptchaVerifier);
     const code = prompt('Enter the verification code');
@@ -56,6 +69,7 @@ const phoneLogin = async () => {
     console.error('Phone login failed:', error);
     alert(error.message);
   }
+  await phoneTrace.stop();
 };
 
 let recaptchaVerifier;
@@ -295,7 +309,7 @@ onMounted(() => {
 
 <style>
 body {
-  background-image: url('../assets/img/ts1.png');
+  background-image: url('@/assets/img/ts1.png');
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;

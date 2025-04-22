@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue';
+import { getPerformance } from 'firebase/performance';
 import { db } from '../firebase';
 import {
   collection,
@@ -13,7 +14,11 @@ import {
   updateDoc,
   deleteDoc
 } from 'firebase/firestore';
-import MessageInput from './MessageInput.vue';
+import { defineAsyncComponent } from 'vue';
+
+const perf = getPerformance();
+
+const MessageInput = defineAsyncComponent(() => import('./MessageInput.vue'));
 
 const props = defineProps({
   user: Object
@@ -63,6 +68,12 @@ const clearReplying = () => {
 };
 
 onMounted(() => {
+  // Preload /gallery route
+  const link = document.createElement('link');
+  link.rel = 'prefetch';
+  link.href = '/gallery';
+  document.head.appendChild(link);
+
   if ("Notification" in window && Notification.permission !== 'granted') {
     Notification.requestPermission();
   }
@@ -71,6 +82,10 @@ onMounted(() => {
   const q = query(userMessagesRef, orderBy('createdAt'));
 
   let lastMessageId = null;
+
+  // Firebase Performance trace for chat messages load
+  const trace = perf.trace('chat_messages_load');
+  trace.start();
 
   onSnapshot(q, (snapshot) => {
     const newMessages = snapshot.docs.map(doc => ({
@@ -103,6 +118,7 @@ onMounted(() => {
 
     lastMessageId = latest?.id;
     messages.value = newMessages;
+    trace.stop();
     nextTick(() => scrollToBottom());
   });
 
@@ -163,8 +179,8 @@ const handleSend = async (payload) => {
       content: replyingTo.value.content,
       sender: replyingTo.value.sender,
     };
+    clearReplying();
   }
-  replyingTo.value = null;
 
   try {
     await addDoc(collection(db, 'messages'), messageData);
@@ -183,8 +199,8 @@ const handleSend = async (payload) => {
   }
 };
 
-const handleSendReply = (payload) => {
-  handleSend(payload);
+const handleSendReply = async (payload) => {
+  await handleSend(payload);
   clearReplying();
 };
 
@@ -373,6 +389,15 @@ function formatTime(seconds) {
   cursor: pointer;
 }
 
+.reaction-bar span {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.reaction-bar span:hover {
+  transform: scale(1.2);
+}
+
 .reaction-bar span.selected {
   transform: scale(1.2);
   text-shadow: 0 0 2px #0002;
@@ -402,7 +427,7 @@ function formatTime(seconds) {
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
-  background-color: rgba(255, 255, 255, 0.6);
+  background-color: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   border-radius: 12px;
   overflow: hidden;
@@ -458,7 +483,7 @@ function formatTime(seconds) {
 .message-wrapper {
   display: flex;
   width: 100%;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem; /* increased for spacing */
 }
 
 .message-wrapper.align-right {
@@ -587,6 +612,8 @@ function formatTime(seconds) {
   color: #555;
   font-size: 0.85rem;
   margin-bottom: 0.3rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid #ccc;
 }
 
 .edit-box {

@@ -14,17 +14,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, defineAsyncComponent } from 'vue';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from './firebase/index.js';
-import ChatFeed from './components/ChatFeed.vue';
-import UserAuth from './components/UserAuth.vue';
+import { auth } from '@/firebase'; // optimized path using alias
 
 const user = ref(null);
 
 const handleSignedIn = (signedInUser) => {
   user.value = signedInUser;
 };
+
+// Dynamic imports for better code splitting
+const ChatFeed = defineAsyncComponent(() => import('./components/ChatFeed.vue'));
+const UserAuth = defineAsyncComponent(() => import('./components/UserAuth.vue'));
 
 onMounted(() => {
   onAuthStateChanged(auth, (u) => {
@@ -35,6 +37,8 @@ onMounted(() => {
 const logout = () => {
   signOut(auth);
 };
+
+// Potential image optimization can be handled here if image usage is added later
 </script>
 
 <style scoped>

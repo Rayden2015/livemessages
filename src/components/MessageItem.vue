@@ -1,6 +1,6 @@
 <template>
   <div class="message-item" :class="{ mine: isMine }">
-    <img v-if="message.avatar" :src="message.avatar" class="avatar" />
+    <img v-if="message.avatar" :src="message.avatar" class="avatar" loading="lazy" />
     <div class="message-bubble">
       <div class="sender">{{ message.name || '🎉 Guest' }}</div>
       <div v-if="message.type === 'text'">{{ message.content }}</div>
@@ -9,6 +9,7 @@
         :src="message.content"
         alt="Image"
         class="media-preview"
+        loading="lazy"
       />
       <video
         v-else-if="message.type === 'video'"
@@ -35,6 +36,8 @@
 <script setup>
 import { ref } from 'vue';
 import { uploadBytesResumable } from 'firebase/storage';
+import { trace } from 'firebase/performance';
+import { performance } from '../firebase'; // assuming performance is exported from your firebase config
 
 const props = defineProps(['message', 'currentUser']);
 const isMine = props.message.uid === props.currentUser?.uid;
@@ -48,6 +51,9 @@ const handleFile = async (e) => {
                file.type.startsWith('video') ? 'video' :
                file.type.startsWith('audio') ? 'audio' : null;
   if (!type) return;
+
+  const uploadTrace = trace(performance, 'message_upload');
+  await uploadTrace.start();
 
   const fileRef = storageRef(storage, `uploads/${file.name}`);
   const uploadTask = uploadBytesResumable(fileRef, file);
@@ -74,6 +80,7 @@ const handleFile = async (e) => {
         timestamp: serverTimestamp()
       });
       isUploading.value = false;
+      await uploadTrace.stop();
     }
   );
 };
@@ -108,7 +115,10 @@ const handleFile = async (e) => {
 .media-preview {
   margin-top: 0.5rem;
   max-width: 100%;
+  width: 100%;
+  height: auto;
   border-radius: 8px;
+  object-fit: contain;
 }
 .upload-progress {
   font-size: 0.8rem;
