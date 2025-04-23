@@ -1,4 +1,5 @@
 <script setup>
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import { ref, onMounted } from 'vue';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier } from '../firebase';
 
@@ -68,15 +69,16 @@ onMounted(() => {
 
 <template>
   <div class="auth">
-    <h1 class="title">THERESA-SHARON @ 1</h1>
+    <h1 class="card">THERESA-SHARON @ 1</h1>
     <transition name="fade">
       <div class="card">
         <button @click="googleLogin">
-          <span class="icon">🔒</span> Login with Google
+          <i class="fab fa-google"></i>
+          Login with Google
         </button>
       </div>
     </transition>
-    <transition name="fade">
+    <!-- <transition name="fade">
       <div class="card">
         <form @submit.prevent="emailLogin">
           <label>Email</label>
@@ -94,15 +96,15 @@ onMounted(() => {
           </button>
         </form>
       </div>
-    </transition>
+    </transition> -->
     <transition name="fade">
       <div class="card">
         <form @submit.prevent="phoneLogin">
-          <label>Phone</label>
-          <input v-model="phone" placeholder="Phone number +23354*******" />
+          <label>Mobile Number</label>
+          <input v-model="phone" placeholder="+23354*******" />
           <div id="recaptcha-container"></div>
           <button type="submit">
-            <span class="icon">📱</span> Login with Phone
+            <span class="icon">📱</span> Login with Mobile Number
           </button>
         </form>
       </div>
@@ -113,7 +115,7 @@ onMounted(() => {
 <style scoped>
 .auth {
   max-width: 90%;
-  margin: 2rem auto;
+  margin: 0 auto;
   padding: 2rem;
   position: relative;
   z-index: 1;
@@ -127,7 +129,7 @@ onMounted(() => {
 
 .auth::before {
   content: '';
-  position: absolute;
+  /* position: absolute;  to center the audth card  */
   inset: 0;
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(6px);
@@ -140,6 +142,15 @@ onMounted(() => {
   font-weight: bold;
   margin-bottom: 1.5rem;
   color: #333;
+  width: 100%;
+  padding: 1.2rem 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-top: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .auth button {
@@ -149,13 +160,6 @@ onMounted(() => {
   color: white;
   border: none;
   border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
 .card:first-of-type button {
@@ -176,11 +180,12 @@ onMounted(() => {
 
 .auth input {
   width: 100%;
-  padding: 0.6rem;
+  padding: 0.75rem;
   margin-bottom: 0.75rem;
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 1rem;
+  box-sizing: border-box;
 }
 
 .auth form {
@@ -189,17 +194,26 @@ onMounted(() => {
 
 .card {
   width: 100%;
-  padding: 1rem;
+  padding: 2rem;
   border-radius: 8px;
-  background: #f9f9f9;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 3%;
 }
 
 .card form {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .icon {
+  font-size: 1.2rem;
+}
+
+.fa-google {
   font-size: 1.2rem;
 }
 
@@ -272,5 +286,10 @@ body {
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
+  min-height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 </style>
