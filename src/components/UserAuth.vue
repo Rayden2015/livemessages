@@ -2,12 +2,16 @@
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import { ref, onMounted } from 'vue';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier } from '../firebase';
+import { updateProfile, signInAnonymously } from 'firebase/auth';
 
 const emit = defineEmits(['send', 'signed-in']);
 
 const email = ref('');
 const password = ref('');
 const phone = ref('');
+const guestName = ref(localStorage.getItem('guestName') || '');
+
+const loading = ref(false);
 
 const googleLogin = async () => {
   try {
@@ -18,8 +22,6 @@ const googleLogin = async () => {
     alert(error.message);
   }
 };
-
-const loading = ref(false);
 
 const emailLogin = async () => {
   loading.value = true;
@@ -38,6 +40,12 @@ const phoneLogin = async () => {
     const confirmation = await signInWithPhoneNumber(auth, phone.value, recaptchaVerifier);
     const code = prompt('Enter the verification code');
     const result = await confirmation.confirm(code);
+    if (!result.user.displayName) {
+      const name = prompt('Enter your name');
+      if (name) {
+        await updateProfile(result.user, { displayName: name });
+      }
+    }
     emit('signed-in', result.user);
   } catch (error) {
     console.error('Phone login failed:', error);
@@ -45,8 +53,42 @@ const phoneLogin = async () => {
   }
 };
 
-let recaptchaVerifier;
+const loginAsGuest = async () => {
+  if (!guestName.value.trim()) {
+    alert('Please enter a name');
+    return;
+  }
 
+  try {
+    const result = await signInAnonymously(auth);
+
+    await updateProfile(auth.currentUser, {
+      displayName: guestName.value,
+      photoURL: `/src/assets/guest.png`
+    });
+
+    // Save locally so it persists across sessions
+    localStorage.setItem('guestName', guestName.value);
+    localStorage.setItem('guestAvatar', '/assets/default-avatar.png');
+
+    // Immediately emit updated user
+    result.user.displayName = guestName.value.trim();
+    result.user.photoURL = '/assets/default-avatar.png';
+    console.log('Guest login successful:', result.user);
+    emit('signed-in', {
+      ...auth.currentUser,
+      displayName: guestName.value,
+      photoURL: '/assets/default-avatar.png'
+    }); 
+    window.location.reload();
+
+  } catch (error) {
+    console.error('Guest login failed:', error);
+    alert(error.message);
+  }
+};
+
+let recaptchaVerifier;
 let recaptchaInitialized = false;
 
 onMounted(() => {
@@ -69,7 +111,8 @@ onMounted(() => {
 
 <template>
   <div class="auth">
-    <h1 class="card">THERESA-SHARON @ 1</h1>
+    <h1 class="card title">THERESA-SHARON @ 1</h1>
+
     <transition name="fade">
       <div class="card">
         <button @click="googleLogin">
@@ -78,25 +121,14 @@ onMounted(() => {
         </button>
       </div>
     </transition>
-    <!-- <transition name="fade">
-      <div class="card">
-        <form @submit.prevent="emailLogin">
-          <label>Email</label>
-          <input v-model="email" placeholder="Email" />
-          <label>Password</label>
-          <input v-model="password" type="password" placeholder="Password" />
-          <button type="submit" :disabled="loading">
-            <span class="icon">📧</span>
-            <template v-if="loading">
-              Signing in<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
-            </template>
-            <template v-else>
-              Login with Email
-            </template>
-          </button>
-        </form>
+
+    <transition name="fade">
+      <div class="guest-login card">
+        <input v-model="guestName" placeholder="Enter your name" />
+        <button @click="loginAsGuest">Join as Guest</button>
       </div>
-    </transition> -->
+    </transition>
+
     <transition name="fade">
       <div class="card">
         <form @submit.prevent="phoneLogin">
@@ -129,9 +161,8 @@ onMounted(() => {
 
 .auth::before {
   content: '';
-  /* position: absolute;  to center the audth card  */
   inset: 0;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(6px);
   z-index: -1;
 }
@@ -148,18 +179,16 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  margin-top: 0;
-  margin-left: 0;
-  margin-right: 0;
 }
 
-.auth button {
+.card {
   width: 100%;
-  padding: 0.75rem;
-  margin-top: 0.5rem;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  padding: 2rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 3%;
 }
 
 .card:first-of-type button {
@@ -169,13 +198,14 @@ onMounted(() => {
   background-color: #c33d2f;
 }
 
-.card:nth-of-type(2) button,
-.card:nth-of-type(3) button {
-  background-color: #e91e63;
-}
-.card:nth-of-type(2) button:hover,
-.card:nth-of-type(3) button:hover {
-  background-color: #d81b60;
+.auth button {
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
 }
 
 .auth input {
@@ -188,35 +218,6 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.auth form {
-  margin-top: 1rem;
-}
-
-.card {
-  width: 100%;
-  padding: 2rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(50%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  margin-bottom: 3%;
-}
-
-.card form {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.icon {
-  font-size: 1.2rem;
-}
-
-.fa-google {
-  font-size: 1.2rem;
-}
-
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.5s ease;
@@ -224,31 +225,6 @@ onMounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-.dot {
-  animation: blink 1.4s infinite both;
-  display: inline-block;
-}
-
-.dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes blink {
-  0% {
-    opacity: 0.2;
-  }
-  20% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.2;
-  }
 }
 
 @media (min-width: 600px) {
